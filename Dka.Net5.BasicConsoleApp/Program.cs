@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Dka.Net5.BasicConsoleApp.Core.Logic;
 using Dka.Net5.BasicConsoleApp.Services;
@@ -27,11 +29,16 @@ namespace Dka.Net5.BasicConsoleApp
                 .Build();
 
             var logger = host.Services.GetService<ILogger<Program>>();
+            var hostedServices = host.Services.GetService<IEnumerable<IHostedService>>()?.Select(t => (ICustomHostedService)t) ?? Enumerable.Empty<ICustomHostedService>();
             
             using (host)
             {
                 logger.LogInformation("Program started {DateTime} UTC", DateTime.UtcNow);
-                await host.RunAsync();
+
+                await host.StartAsync();
+                WaitHostedServicesCompleted(hostedServices);
+                await host.StopAsync();
+
                 logger.LogInformation("Program finished {DateTime} UTC", DateTime.UtcNow);
             }
         }
@@ -69,6 +76,15 @@ namespace Dka.Net5.BasicConsoleApp
                 .CreateLogger();
 
             loggingBuilder.AddSerilog(logger);
+        }
+
+        private static void WaitHostedServicesCompleted(IEnumerable<ICustomHostedService> hostedServices)
+        {
+            Task.WaitAll(hostedServices.Select(t => Task.Run(() =>
+            {
+                while (!t.CancellationToken.IsCancellationRequested)
+                { }
+            })).ToArray());
         }
     }
 }
